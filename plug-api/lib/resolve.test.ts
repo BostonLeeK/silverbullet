@@ -1,5 +1,15 @@
 import { expect, test } from "vitest";
-import { resolveMarkdownLink } from "@silverbulletmd/silverbullet/lib/resolve";
+import {
+  isSpaceShippedPath,
+  resolveMarkdownLink,
+} from "@silverbulletmd/silverbullet/lib/resolve";
+
+test("isSpaceShippedPath", () => {
+  expect(isSpaceShippedPath("Library/Std/Foo")).toEqual(true);
+  expect(isSpaceShippedPath("Repositories/Std")).toEqual(true);
+  expect(isSpaceShippedPath("index")).toEqual(false);
+  expect(isSpaceShippedPath("My Library/note")).toEqual(false);
+});
 
 test("Test URL resolver", () => {
   // Absolute paths

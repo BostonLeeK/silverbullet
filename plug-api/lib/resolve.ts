@@ -26,6 +26,12 @@ export function fileName(name: string | Path): string | Path {
 
 const builtinPrefixes = ["tag:", "search:"];
 
+const spaceShippedPathPrefixes = ["Library/", "Repositories/"];
+
+export function isSpaceShippedPath(name: string): boolean {
+  return spaceShippedPathPrefixes.some((prefix) => name.startsWith(prefix));
+}
+
 /**
  * Builtin pages are pages which SB should automatically consider as existing
  */

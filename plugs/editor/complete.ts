@@ -1,4 +1,7 @@
-import { folderName } from "@silverbulletmd/silverbullet/lib/resolve";
+import {
+  folderName,
+  isSpaceShippedPath,
+} from "@silverbulletmd/silverbullet/lib/resolve";
 import { editor, index, language, lua } from "@silverbulletmd/silverbullet/syscalls";
 import type {
   DocumentMeta,
@@ -86,6 +89,12 @@ export async function pageComplete(completeEvent: CompleteEvent) {
 
   // Don't complete hidden pages
   allPages = allPages.filter((page) => !(page.pageDecoration?.hide === true));
+  if (!prefix.startsWith("^")) {
+    allPages = allPages.filter(
+      (page) =>
+        page.tag !== "page" || !isSpaceShippedPath((page as PageMeta).name),
+    );
+  }
 
   const folder = folderName(completeEvent.pageName);
 

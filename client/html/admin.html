@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<base href="{{.HostPrefix}}/" />
+<link href=".client/favicon.png" rel="icon" />
+<title>Admin — {{.SpaceName}}</title>
+<style>
+  :root {
+    --fg: #1a1a1a;
+    --muted: #6c6c6c;
+    --bg: #fafafa;
+    --card: #fff;
+    --border: #d7d7dd;
+    --accent: #464cfc;
+    --accent-hover: #3339d8;
+    --danger: #c23636;
+    --ro: #8a5a00;
+    --ok: #137333;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+  }
+  header {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 0.8rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
+  header .who { margin-left: auto; color: var(--muted); font-size: 0.9rem; }
+  header a { color: var(--accent); text-decoration: none; }
+  main { max-width: 960px; margin: 0 auto; padding: 1.5rem; display: grid; gap: 1.5rem; }
+  section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.2rem 1.4rem;
+  }
+  section > h2 {
+    margin: 0 0 0.8rem;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  th, td {
+    text-align: left;
+    padding: 0.45rem 0.4rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  th { color: var(--muted); font-weight: 500; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  tr:last-child td { border-bottom: none; }
+  td .actions { display: flex; gap: 0.35rem; justify-content: flex-end; }
+  input, select, button {
+    font: inherit;
+    padding: 0.4rem 0.55rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: #fff;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border-color: transparent;
+    cursor: pointer;
+  }
+  button:hover { background: var(--accent-hover); }
+  button.ghost { background: transparent; color: var(--fg); border-color: var(--border); }
+  button.ghost:hover { background: #f0f0f3; }
+  button.danger { background: transparent; color: var(--danger); border-color: var(--border); }
+  button.danger:hover { background: #fbecec; }
+  form.inline { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) auto; gap: 0.5rem; align-items: end; margin-top: 0.8rem; }
+  form.inline label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.82rem; color: var(--muted); }
+  form.inline label input, form.inline label select { width: 100%; }
+  .pill { font-size: 0.75rem; padding: 0.1rem 0.5rem; border-radius: 99px; border: 1px solid var(--border); }
+  .pill.admin { color: var(--ok); border-color: #bfe3cb; background: #f0faf3; }
+  .pill.user { color: var(--muted); }
+  .pill.reader { color: var(--ro); border-color: #f1dbb0; background: #fbf2e0; }
+  .pill.writer { color: var(--accent); border-color: #cdd0ff; background: #f2f3ff; }
+  .pill.owner { color: var(--ok); border-color: #bfe3cb; background: #f0faf3; }
+  .muted { color: var(--muted); }
+  .folder-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .root-label { font-style: italic; color: var(--muted); }
+  .error { color: var(--danger); margin-top: 0.5rem; font-size: 0.88rem; }
+  .empty { color: var(--muted); font-style: italic; padding: 0.5rem 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{.SpaceName}} — Admin</h1>
+  <span class="who" id="who">…</span>
+  <a href="/">← Back to space</a>
+  <a href=".logout">Logout</a>
+</header>
+
+<main>
+  <section>
+    <h2>Users</h2>
+    <table id="usersTable">
+      <thead><tr><th>ID</th><th>Email</th><th>Role</th><th>Created</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty" id="usersEmpty" hidden>No users.</div>
+
+    <h3 style="font-size:0.95rem;margin-top:1.2rem;margin-bottom:0.2rem">Create user</h3>
+    <form id="userForm" class="inline">
+      <label>Email <input name="email" type="email" required /></label>
+      <label>Password <input name="password" type="password" minlength="8" required /></label>
+      <label>Role
+        <select name="role">
+          <option value="user">user</option>
+          <option value="admin">admin</option>
+        </select>
+      </label>
+      <button type="submit">Create</button>
+    </form>
+    <div class="error" id="userError"></div>
+  </section>
+
+  <section>
+    <h2>Folder permissions</h2>
+    <p class="muted" style="margin-top:-0.4rem;font-size:0.88rem">
+      Grant a user read or write access to a folder. Access is inherited by sub-folders; <code>owner</code> can further grant rights, <code>writer</code> can read+write, <code>reader</code> is read-only. Leave folder blank for the whole space.
+    </p>
+    <table id="aclsTable">
+      <thead><tr><th>Folder</th><th>User</th><th>Permission</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty" id="aclsEmpty" hidden>No folder ACLs yet.</div>
+
+    <h3 style="font-size:0.95rem;margin-top:1.2rem;margin-bottom:0.2rem">Grant permission</h3>
+    <form id="aclForm" class="inline">
+      <label>Folder path
+        <input name="folderPath" placeholder="e.g. Team/Docs  (blank = whole space)" />
+      </label>
+      <label>User
+        <select name="userId" required></select>
+      </label>
+      <label>Permission
+        <select name="permission">
+          <option value="reader">reader</option>
+          <option value="writer">writer</option>
+          <option value="owner">owner</option>
+        </select>
+      </label>
+      <button type="submit">Grant</button>
+    </form>
+    <div class="error" id="aclError"></div>
+  </section>
+</main>
+
+<script>
+const api = {
+  async me() { return (await fetch('.auth/me', { credentials: 'include' })).json(); },
+  async listUsers() { return (await fetch('.auth/users', { credentials: 'include' })).json(); },
+  async createUser(body) {
+    const r = await fetch('.auth/users', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+  async updateUser(id, body) {
+    const r = await fetch(`.auth/users/${id}`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+  async deleteUser(id) {
+    const r = await fetch(`.auth/users/${id}`, { method: 'DELETE', credentials: 'include' });
+    if (!r.ok && r.status !== 204) throw new Error(await r.text());
+  },
+  async listACLs() { return (await fetch('.auth/acls', { credentials: 'include' })).json(); },
+  async grantACL(body) {
+    const r = await fetch('.auth/acls', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(await r.text());
+  },
+  async revokeACL(folder, userId) {
+    const q = new URLSearchParams({ folder, userId: String(userId) });
+    const r = await fetch(`.auth/acls?${q}`, { method: 'DELETE', credentials: 'include' });
+    if (!r.ok && r.status !== 204) throw new Error(await r.text());
+  },
+};
+
+function pill(kind, value) {
+  const span = document.createElement('span');
+  span.className = `pill ${kind}`;
+  span.textContent = value;
+  return span;
+}
+
+function fmtDate(unixSec) {
+  if (!unixSec) return '';
+  return new Date(unixSec * 1000).toISOString().slice(0, 10);
+}
+
+let CURRENT_USER = null;
+let USERS = [];
+
+async function refreshUsers() {
+  USERS = (await api.listUsers()) || [];
+  const tbody = document.querySelector('#usersTable tbody');
+  tbody.innerHTML = '';
+  document.getElementById('usersEmpty').hidden = USERS.length > 0;
+  for (const u of USERS) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${u.id}</td>
+      <td>${u.email}</td>
+      <td></td>
+      <td class="muted">${fmtDate(u.createdAt)}</td>
+      <td><div class="actions"></div></td>
+    `;
+    tr.querySelector('td:nth-child(3)').appendChild(pill(u.role, u.role));
+    const actions = tr.querySelector('.actions');
+
+    const roleBtn = document.createElement('button');
+    roleBtn.className = 'ghost';
+    roleBtn.textContent = u.role === 'admin' ? 'Demote' : 'Promote';
+    roleBtn.onclick = async () => {
+      try {
+        await api.updateUser(u.id, { role: u.role === 'admin' ? 'user' : 'admin' });
+        await refreshUsers();
+        await refreshUserSelect();
+      } catch (e) { alert(e.message); }
+    };
+    actions.appendChild(roleBtn);
+
+    const pwBtn = document.createElement('button');
+    pwBtn.className = 'ghost';
+    pwBtn.textContent = 'Reset password';
+    pwBtn.onclick = async () => {
+      const password = prompt(`New password for ${u.email} (min 8 chars)`);
+      if (!password) return;
+      try { await api.updateUser(u.id, { password }); alert('Updated.'); }
+      catch (e) { alert(e.message); }
+    };
+    actions.appendChild(pwBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'danger';
+    delBtn.textContent = 'Delete';
+    delBtn.disabled = u.id === CURRENT_USER.id;
+    delBtn.title = delBtn.disabled ? "You can't delete your own account" : '';
+    delBtn.onclick = async () => {
+      if (!confirm(`Delete user ${u.email}? Their folder ACLs will also be removed.`)) return;
+      try { await api.deleteUser(u.id); await refreshUsers(); await refreshACLs(); await refreshUserSelect(); }
+      catch (e) { alert(e.message); }
+    };
+    actions.appendChild(delBtn);
+
+    tbody.appendChild(tr);
+  }
+}
+
+async function refreshACLs() {
+  const acls = (await api.listACLs()) || [];
+  const tbody = document.querySelector('#aclsTable tbody');
+  tbody.innerHTML = '';
+  document.getElementById('aclsEmpty').hidden = acls.length > 0;
+  for (const a of acls) {
+    const tr = document.createElement('tr');
+    const folderLabel = a.folderPath === '' ?
+      '<span class="root-label">(whole space)</span>' :
+      `<span class="folder-path">${a.folderPath}</span>`;
+    tr.innerHTML = `
+      <td>${folderLabel}</td>
+      <td>${a.userEmail} <span class="muted">#${a.userId}</span></td>
+      <td></td>
+      <td><div class="actions"></div></td>
+    `;
+    tr.querySelector('td:nth-child(3)').appendChild(pill(a.permission, a.permission));
+    const delBtn = document.createElement('button');
+    delBtn.className = 'danger';
+    delBtn.textContent = 'Revoke';
+    delBtn.onclick = async () => {
+      if (!confirm(`Revoke ${a.permission} for ${a.userEmail} on "${a.folderPath || '(root)'}"?`)) return;
+      try { await api.revokeACL(a.folderPath, a.userId); await refreshACLs(); }
+      catch (e) { alert(e.message); }
+    };
+    tr.querySelector('.actions').appendChild(delBtn);
+    tbody.appendChild(tr);
+  }
+}
+
+async function refreshUserSelect() {
+  const sel = document.querySelector('#aclForm select[name=userId]');
+  sel.innerHTML = '';
+  for (const u of USERS) {
+    const opt = document.createElement('option');
+    opt.value = String(u.id);
+    opt.textContent = `${u.email} (${u.role})`;
+    sel.appendChild(opt);
+  }
+}
+
+document.getElementById('userForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  try {
+    await api.createUser({
+      email: f.get('email'),
+      password: f.get('password'),
+      role: f.get('role'),
+    });
+    document.getElementById('userError').textContent = '';
+    e.target.reset();
+    await refreshUsers();
+    await refreshUserSelect();
+  } catch (err) {
+    document.getElementById('userError').textContent = err.message;
+  }
+});
+
+document.getElementById('aclForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  try {
+    await api.grantACL({
+      folderPath: String(f.get('folderPath') || '').trim(),
+      userId: Number(f.get('userId')),
+      permission: f.get('permission'),
+    });
+    document.getElementById('aclError').textContent = '';
+    e.target.reset();
+    await refreshACLs();
+  } catch (err) {
+    document.getElementById('aclError').textContent = err.message;
+  }
+});
+
+(async function main() {
+  try {
+    CURRENT_USER = await api.me();
+    if (!CURRENT_USER || CURRENT_USER.role !== 'admin') {
+      document.body.innerHTML = '<main><section><h2>Forbidden</h2><p>This page is only available to administrators.</p></section></main>';
+      return;
+    }
+    document.getElementById('who').textContent = `${CURRENT_USER.email} (admin)`;
+    await refreshUsers();
+    await refreshACLs();
+    await refreshUserSelect();
+  } catch (e) {
+    location.href = '.auth?from=/.admin';
+  }
+})();
+</script>
+</body>
+</html>

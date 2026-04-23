@@ -1,4 +1,5 @@
 import type { EventHook } from "./plugos/hooks/event.ts";
+import { notFoundError } from "@silverbulletmd/silverbullet/constants";
 import { jitter, safeRun } from "@silverbulletmd/silverbullet/lib/async";
 import { localDateString } from "@silverbulletmd/silverbullet/lib/dates";
 import type {
@@ -251,8 +252,14 @@ export class Space {
           return;
         }
         for (const fileName of this.watchedFiles) {
-          // Setting observing to true here to hint that we may be interested in more active syncing
-          await this.spacePrimitives.getFileMeta(fileName, true);
+          try {
+            await this.spacePrimitives.getFileMeta(fileName, true);
+          } catch (e: any) {
+            if (e?.message === notFoundError.message) {
+              continue;
+            }
+            throw e;
+          }
         }
       });
     }, pageWatchInterval + jitter());

@@ -216,6 +216,12 @@ export class HttpSpacePrimitives implements SpacePrimitives {
       },
       0, // No timeout for uploads — transfer time depends on file size and connection speed
     );
+    if (res.status === 409) {
+      throw new Error(`Cannot write read-only path: ${path}`);
+    }
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Write ${path} failed: ${res.status}`);
+    }
     return headersToFileMeta(path, res.headers)!;
   }
 
@@ -226,6 +232,12 @@ export class HttpSpacePrimitives implements SpacePrimitives {
         method: "DELETE",
       },
     );
+    if (req.status === 404) {
+      return;
+    }
+    if (req.status === 409) {
+      return;
+    }
     if (req.status !== 200) {
       throw Error(`Failed to delete file: ${req.statusText}`);
     }

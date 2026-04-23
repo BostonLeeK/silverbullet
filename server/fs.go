@@ -1,11 +1,13 @@
 package server
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -30,20 +32,48 @@ func buildFsRoutes() http.Handler {
 	return fsRouter
 }
 
+func omitShippedFromSyncList(files []FileMeta) []FileMeta {
+	out := files[:0]
+	for _, f := range files {
+		if strings.HasPrefix(f.Name, "Library/") || strings.HasPrefix(f.Name, "Repositories/") {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
 func handleFsList(w http.ResponseWriter, r *http.Request) {
 	spaceConfig := spaceConfigFromContext(r.Context())
 	if r.Header.Get("X-Sync-Mode") != "" {
-		// Handle direct requests for JSON representation of file list
 		files, err := spaceConfig.SpacePrimitives.FetchFileList()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		// Filter and annotate files by ACL for the current user.
+		user := userFromContext(r.Context())
+		if spaceConfig.UserStore != nil && user != nil && user.Role != RoleAdmin {
+			filtered := files[:0]
+			for _, f := range files {
+				perm, err := spaceConfig.UserStore.EffectivePermission(user, f.Name)
+				if err != nil || perm == "" {
+					continue
+				}
+				if permRank(perm) < permRank(PermWriter) {
+					f.Perm = "ro"
+				}
+				filtered = append(filtered, f)
+			}
+			files = filtered
+		}
+		if r.Header.Get("X-Sync-Omit-Shipped") != "" {
+			files = omitShippedFromSyncList(files)
+		}
 		w.Header().Set("X-Space-Path", spaceConfig.SpaceFolderPath)
 		w.Header().Set("Cache-Control", "no-cache")
 		render.JSON(w, r, files)
 	} else {
-		// Otherwise, redirect to the UI
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 	}
 }
@@ -53,13 +83,15 @@ func handleFsGet(w http.ResponseWriter, r *http.Request) {
 	path := DecodeURLParam(r, "*")
 	spaceConfig := spaceConfigFromContext(r.Context())
 
-	// log.Printf("Got this path: %s", path)
+	if !checkACL(w, r, spaceConfig, path, false) {
+		return
+	}
 
 	if r.Header.Get("X-Get-Meta") != "" {
 		// Getting meta via GET request
 		meta, err := spaceConfig.SpacePrimitives.GetFileMeta(path)
 		if err != nil {
-			if err == ErrNotFound {
+			if errors.Is(err, ErrNotFound) {
 				http.NotFound(w, r)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -75,7 +107,7 @@ func handleFsGet(w http.ResponseWriter, r *http.Request) {
 	// Read file content
 	data, meta, err := spaceConfig.SpacePrimitives.ReadFile(path)
 	if err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			http.NotFound(w, r)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -93,6 +125,10 @@ func handleFsPut(w http.ResponseWriter, r *http.Request) {
 	path := DecodeURLParam(r, "*")
 	spaceConfig := spaceConfigFromContext(r.Context())
 
+	if !checkACL(w, r, spaceConfig, path, true) {
+		return
+	}
+
 	// Read request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -103,6 +139,10 @@ func handleFsPut(w http.ResponseWriter, r *http.Request) {
 	// Write file
 	meta, err := spaceConfig.SpacePrimitives.WriteFile(path, body, getFileMetaFromHeaders(r.Header, path))
 	if err != nil {
+		if errors.Is(err, ErrReadOnlySpacePath) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		log.Printf("Write failed: %v\n", err)
 		http.Error(w, "Write failed", http.StatusInternalServerError)
 		return
@@ -118,9 +158,15 @@ func handleFsDelete(w http.ResponseWriter, r *http.Request) {
 	path := DecodeURLParam(r, "*")
 	spaceConfig := spaceConfigFromContext(r.Context())
 
+	if !checkACL(w, r, spaceConfig, path, true) {
+		return
+	}
+
 	if err := spaceConfig.SpacePrimitives.DeleteFile(path); err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			http.NotFound(w, r)
+		} else if errors.Is(err, ErrReadOnlySpacePath) {
+			http.Error(w, err.Error(), http.StatusConflict)
 		} else {
 			log.Printf("Error deleting file: %v\n", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -184,6 +230,39 @@ func getFileMetaFromHeaders(h http.Header, path string) *FileMeta {
 	}
 
 	return fm
+}
+
+// checkACL verifies that the current user has at least the required permission
+// for path. Returns true on success. On failure it writes an HTTP error and
+// returns false. Admins and bearer-token callers always pass.
+func checkACL(w http.ResponseWriter, r *http.Request, spaceConfig *SpaceConfig, path string, needWrite bool) bool {
+	if spaceConfig.UserStore == nil {
+		return true
+	}
+	user := userFromContext(r.Context())
+	if user == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return false
+	}
+	if user.Role == RoleAdmin {
+		return true
+	}
+	var allowed bool
+	var err error
+	if needWrite {
+		allowed, err = spaceConfig.UserStore.CanWrite(user, path)
+	} else {
+		allowed, err = spaceConfig.UserStore.CanRead(user, path)
+	}
+	if err != nil {
+		http.Error(w, "ACL check failed", http.StatusInternalServerError)
+		return false
+	}
+	if !allowed {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return false
+	}
+	return true
 }
 
 func DecodeURLParam(r *http.Request, name string) string {

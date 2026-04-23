@@ -33,13 +33,12 @@ type ServerConfig struct {
 	HeadlessToken string
 }
 
-type UserPasswordAuthorizer func(username, password string) bool
-
 type SpaceConfig struct {
 	Hostname string
 	Auth     *AuthOptions
 
-	Authorize UserPasswordAuthorizer
+	// UserStore backs email/password auth and folder ACLs.
+	UserStore *UserStore
 
 	SpacePrimitives SpacePrimitives
 
@@ -120,17 +119,16 @@ type ShellBackend interface {
 // Auth options for user authentication
 type AuthOptions struct {
 	AuthToken       string `json:"authToken,omitempty"`
-	User            string `json:"user"`
-	Pass            string `json:"pass"`
-	LockoutTime     int    `json:"lockoutTime"`  // in seconds
+	LockoutTime     int    `json:"lockoutTime"`     // in seconds
 	LockoutLimit    int    `json:"lockoutLimit"`
 	RememberMeHours int    `json:"rememberMeHours"` // duration for "remember me" sessions
 }
 
 // Common errors
 var (
-	ErrNotFound        = errors.New("Not found")
-	ErrPathOutsideRoot = errors.New("Path not in space")
-	ErrCouldNotWrite   = errors.New("Could not write file")
-	ErrCouldNotGetMeta = errors.New("Could not get file metadata")
+	ErrNotFound          = errors.New("Not found")
+	ErrPathOutsideRoot   = errors.New("Path not in space")
+	ErrCouldNotWrite     = errors.New("Could not write file")
+	ErrCouldNotGetMeta   = errors.New("Could not get file metadata")
+	ErrReadOnlySpacePath = errors.New("read-only space path")
 )

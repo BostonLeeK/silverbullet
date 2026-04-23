@@ -85,6 +85,7 @@ async function patchServiceWorker() {
         (f) =>
           !f.endsWith(".map") &&
           f !== "auth.html" &&
+          f !== "admin.html" &&
           f !== "index.html" &&
           f !== "LICENSE.md",
       )

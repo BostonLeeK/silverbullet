@@ -1,0 +1,42 @@
+{
+  "name": "silverbullet-vscode",
+  "displayName": "SilverBullet",
+  "description": "Connect to a self-hosted SilverBullet server and edit your notes directly from VS Code / Cursor.",
+  "version": "0.1.0",
+  "publisher": "silverbullet",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onFileSystem:silverbullet",
+    "onCommand:silverbullet.connect",
+    "onCommand:silverbullet.disconnect"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "silverbullet.connect", "title": "SilverBullet: Connect to server" },
+      { "command": "silverbullet.disconnect", "title": "SilverBullet: Disconnect" },
+      { "command": "silverbullet.openSpace", "title": "SilverBullet: Open space as workspace folder" }
+    ],
+    "configuration": {
+      "title": "SilverBullet",
+      "properties": {
+        "silverbullet.serverUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL of the SilverBullet server (e.g. https://notes.example.com)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.4.0"
+  }
+}

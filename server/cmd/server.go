@@ -101,49 +101,44 @@ func buildConfig(bundledFiles fs.FS, args []string, buildTime string) *server.Se
 		}
 	}
 
-	if os.Getenv("SB_USER") != "" {
-		pieces := strings.SplitN(os.Getenv("SB_USER"), ":", 2)
-		if len(pieces) != 2 {
-			log.Fatal("SB_USER must be in the format user:pass")
+	// Authentication is always on. User accounts are stored in a SQLite database
+	// next to the space folder. The first time the server starts with no users,
+	// GET /.auth renders a setup form that creates the initial admin account.
+	rootSpaceConfig.Auth = &server.AuthOptions{
+		AuthToken:       os.Getenv("SB_AUTH_TOKEN"),
+		LockoutLimit:    10,
+		LockoutTime:     60,
+		RememberMeHours: 168, // 7 days
+	}
+	if os.Getenv("SB_LOCKOUT_LIMIT") != "" {
+		rootSpaceConfig.Auth.LockoutLimit, err = strconv.Atoi(os.Getenv("SB_LOCKOUT_LIMIT"))
+		if err != nil {
+			log.Fatalf("Could not parse SB_LOCKOUT_LIMIT as number: %v", err)
 		}
-
-		rootSpaceConfig.Auth = &server.AuthOptions{
-			User:         pieces[0],
-			Pass:         pieces[1],
-			AuthToken:    os.Getenv("SB_AUTH_TOKEN"),
-			LockoutLimit: 10,
-			LockoutTime:  60,
+	}
+	if os.Getenv("SB_LOCKOUT_TIME") != "" {
+		rootSpaceConfig.Auth.LockoutTime, err = strconv.Atoi(os.Getenv("SB_LOCKOUT_TIME"))
+		if err != nil {
+			log.Fatalf("Could not parse SB_LOCKOUT_TIME as number: %v", err)
 		}
-
-		rootSpaceConfig.Authorize = func(username, password string) bool {
-			return username == rootSpaceConfig.Auth.User && password == rootSpaceConfig.Auth.Pass
+	}
+	if os.Getenv("SB_REMEMBER_ME_HOURS") != "" {
+		rootSpaceConfig.Auth.RememberMeHours, err = strconv.Atoi(os.Getenv("SB_REMEMBER_ME_HOURS"))
+		if err != nil {
+			log.Fatalf("Could not parse SB_REMEMBER_ME_HOURS as number: %v", err)
 		}
-
-		if os.Getenv("SB_LOCKOUT_LIMIT") != "" {
-			rootSpaceConfig.Auth.LockoutLimit, err = strconv.Atoi(os.Getenv("SB_LOCKOUT_LIMIT"))
-			if err != nil {
-				log.Fatalf("Could not parse SB_LOCKOUT_LIMIT as number: %v", err)
-			}
-
-		}
-
-		if os.Getenv("SB_LOCKOUT_TIME") != "" {
-			rootSpaceConfig.Auth.LockoutTime, err = strconv.Atoi(os.Getenv("SB_LOCKOUT_TIME"))
-			if err != nil {
-				log.Fatalf("Could not parse SB_LOCKOUT_TIME as number: %v", err)
-			}
-		}
-
-		rootSpaceConfig.Auth.RememberMeHours = 168 // default 7 days
-		if os.Getenv("SB_REMEMBER_ME_HOURS") != "" {
-			rootSpaceConfig.Auth.RememberMeHours, err = strconv.Atoi(os.Getenv("SB_REMEMBER_ME_HOURS"))
-			if err != nil {
-				log.Fatalf("Could not parse SB_REMEMBER_ME_HOURS as number: %v", err)
-			}
-		}
-
-		log.Printf("User authentication enabled for user \"%s\" with lockout limit %d and lockout time %ds",
-			pieces[0], rootSpaceConfig.Auth.LockoutLimit, rootSpaceConfig.Auth.LockoutTime)
+	}
+	dbPath := os.Getenv("SB_DB_PATH")
+	if dbPath == "" {
+		dbPath = filepath.Join(rootSpaceConfig.SpaceFolderPath, ".silverbullet.db")
+	}
+	userStore, err := server.OpenUserStore(dbPath)
+	if err != nil {
+		log.Fatalf("Could not open user database at %s: %v", dbPath, err)
+	}
+	rootSpaceConfig.UserStore = userStore
+	if hasUsers, _ := userStore.HasAnyUser(); !hasUsers {
+		log.Println("No users exist yet — visit /.auth in the browser to create the initial admin account.")
 	}
 
 	if os.Getenv("SB_NAME") != "" {
@@ -185,6 +180,7 @@ func buildConfig(bundledFiles fs.FS, args []string, buildTime string) *server.Se
 	// Ensure template files exist before wrapping with base_fs fallthrough,
 	// because the fallthrough layer includes .md files that would make the space appear non-empty.
 	ensureIndex(spacePrimitives, rootSpaceConfig.IndexPage)
+	ensureConfig(spacePrimitives)
 
 	serverConfig.ClientBundle = server.NewReadOnlyFallthroughSpacePrimitives(bundledFiles, "client", bundlePathDate, nil)
 	rootSpaceConfig.SpacePrimitives = server.NewReadOnlyFallthroughSpacePrimitives(bundledFiles, "base_fs", bundlePathDate, spacePrimitives)
@@ -264,6 +260,22 @@ func ensureIndex(sp server.SpacePrimitives, indexPage string) {
 	if _, err := sp.WriteFile(indexPagePath, indexPageContent, nil); err != nil {
 		log.Fatalf("Could not write index page %s: %v", indexPagePath, err)
 	}
+}
+
+func ensureConfig(sp server.SpacePrimitives) {
+	_, _, err := sp.ReadFile("CONFIG.md")
+	if err == nil {
+		return
+	}
+	if err != server.ErrNotFound {
+		log.Printf("Warning: could not check CONFIG.md: %v", err)
+		return
+	}
+	if _, err := sp.WriteFile("CONFIG.md", []byte("# CONFIG\n\n"), nil); err != nil {
+		log.Printf("Warning: could not create CONFIG.md: %v", err)
+		return
+	}
+	log.Println("Created default CONFIG.md")
 }
 
 func findChrome() string {

@@ -11,7 +11,10 @@ import {
   parseToRef,
   type Path,
 } from "@silverbulletmd/silverbullet/lib/ref";
-import { folderName } from "@silverbulletmd/silverbullet/lib/resolve";
+import {
+  folderName,
+  isSpaceShippedPath,
+} from "@silverbulletmd/silverbullet/lib/resolve";
 
 const tagRegex = new RegExp(mdTagRegex.source, "g");
 
@@ -94,6 +97,9 @@ export function AnythingPicker({
         .replaceAll(/[^a-zA-Z0-9-_ ]/g, "");
 
       if (mode === "page") {
+        if (isSpaceShippedPath(pageMeta.name)) {
+          continue;
+        }
         // Special behavior for regular pages
         let description: string | undefined;
         let aliases: string[] = [];

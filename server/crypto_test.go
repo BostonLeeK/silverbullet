@@ -15,8 +15,8 @@ func TestCreateAuthenticator_NewFile(t *testing.T) {
 	authFile := filepath.Join(tmpDir, "auth.json")
 
 	authOptions := &AuthOptions{
-		User:         "testuser",
-		Pass:         "testpass",
+
+
 		LockoutTime:  300,
 		LockoutLimit: 5,
 	}
@@ -38,8 +38,8 @@ func TestCreateAuthenticator_ExistingFile(t *testing.T) {
 
 	// Create initial authenticator
 	authOptions := &AuthOptions{
-		User:         "testuser",
-		Pass:         "testpass",
+
+
 		LockoutTime:  300,
 		LockoutLimit: 5,
 	}
@@ -60,8 +60,8 @@ func TestCreateAuthenticator_AuthOptionsChanged(t *testing.T) {
 
 	// Create initial authenticator
 	authOptions1 := &AuthOptions{
-		User:         "testuser",
-		Pass:         "testpass",
+
+
 		LockoutTime:  300,
 		LockoutLimit: 5,
 	}
@@ -70,10 +70,9 @@ func TestCreateAuthenticator_AuthOptionsChanged(t *testing.T) {
 	require.NoError(t, err)
 	originalKey := auth1.SecretKey
 
-	// Load with different auth options
+	// Load with different auth options: changing AuthToken invalidates JWTs
 	authOptions2 := &AuthOptions{
-		User:         "testuser",
-		Pass:         "newpass", // Changed password
+		AuthToken:    "different-token",
 		LockoutTime:  300,
 		LockoutLimit: 5,
 	}
@@ -88,8 +87,8 @@ func TestAuthenticator_CreateJWT(t *testing.T) {
 	authFile := filepath.Join(tmpDir, "auth.json")
 
 	authOptions := &AuthOptions{
-		User:         "testuser",
-		Pass:         "testpass",
+
+
 		LockoutTime:  300,
 		LockoutLimit: 5,
 	}
@@ -116,8 +115,8 @@ func TestAuthenticator_CreateJWT_WithExpiry(t *testing.T) {
 	authFile := filepath.Join(tmpDir, "auth.json")
 
 	authOptions := &AuthOptions{
-		User:         "testuser",
-		Pass:         "testpass",
+
+
 		LockoutTime:  300,
 		LockoutLimit: 5,
 	}
@@ -147,8 +146,8 @@ func TestAuthenticator_VerifyAndDecodeJWT(t *testing.T) {
 	authFile := filepath.Join(tmpDir, "auth.json")
 
 	authOptions := &AuthOptions{
-		User:         "testuser",
-		Pass:         "testpass",
+
+
 		LockoutTime:  300,
 		LockoutLimit: 5,
 	}
@@ -178,8 +177,8 @@ func TestAuthenticator_VerifyAndDecodeJWT_InvalidToken(t *testing.T) {
 	authFile := filepath.Join(tmpDir, "auth.json")
 
 	authOptions := &AuthOptions{
-		User:         "testuser",
-		Pass:         "testpass",
+
+
 		LockoutTime:  300,
 		LockoutLimit: 5,
 	}
@@ -201,8 +200,8 @@ func TestAuthenticator_VerifyAndDecodeJWT_ExpiredToken(t *testing.T) {
 	authFile := filepath.Join(tmpDir, "auth.json")
 
 	authOptions := &AuthOptions{
-		User:         "testuser",
-		Pass:         "testpass",
+
+
 		LockoutTime:  300,
 		LockoutLimit: 5,
 	}
@@ -232,8 +231,8 @@ func TestAuthenticator_VerifyAndDecodeJWT_WrongKey(t *testing.T) {
 	authFile2 := filepath.Join(tmpDir, "auth2.json")
 
 	authOptions := &AuthOptions{
-		User:         "testuser",
-		Pass:         "testpass",
+
+
 		LockoutTime:  300,
 		LockoutLimit: 5,
 	}

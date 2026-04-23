@@ -13,11 +13,14 @@ import { EventEmitter } from "../plugos/event.ts";
 
 const alwaysProxy = [
   "/.auth",
+  "/.admin",
   "/.shell",
   "/.logout",
   "/.config",
   "/.logs",
   "/.proxy",
+  "/.runtime",
+  "/.ping",
 ];
 
 export type ProxyRouterEvents = {

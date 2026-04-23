@@ -1,0 +1,9 @@
+{
+  "id": "silverbullet-bridge",
+  "name": "SilverBullet Bridge",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Sync a sub-folder of your Obsidian vault with a self-hosted SilverBullet server. Other files stay untouched so existing Obsidian sync keeps working.",
+  "author": "SilverBullet",
+  "isDesktopOnly": false
+}

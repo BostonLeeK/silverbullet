@@ -1,15 +1,12 @@
 package server
 
-import (
-	"errors"
-)
+import "fmt"
 
 type ReadOnlySpacePrimitives struct {
 	wrapped SpacePrimitives
 }
 
 var _ SpacePrimitives = &ReadOnlySpacePrimitives{}
-var NotAllowedError = errors.New("Not allowed")
 
 func NewReadOnlySpacePrimitives(wrapped SpacePrimitives) *ReadOnlySpacePrimitives {
 	return &ReadOnlySpacePrimitives{wrapped: wrapped}
@@ -32,10 +29,10 @@ func (ro *ReadOnlySpacePrimitives) ReadFile(path string) ([]byte, FileMeta, erro
 
 // WriteFile returns an error since this is a read-only implementation
 func (ro *ReadOnlySpacePrimitives) WriteFile(path string, data []byte, meta *FileMeta) (FileMeta, error) {
-	return FileMeta{}, NotAllowedError
+	return FileMeta{}, fmt.Errorf("%w: %q", ErrReadOnlySpacePath, path)
 }
 
 // DeleteFile returns an error since this is a read-only implementation
 func (ro *ReadOnlySpacePrimitives) DeleteFile(path string) error {
-	return NotAllowedError
+	return fmt.Errorf("%w: %q", ErrReadOnlySpacePath, path)
 }

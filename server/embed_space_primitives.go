@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -29,9 +28,50 @@ func NewReadOnlyFallthroughSpacePrimitives(fsys fs.FS, rootPath string, timeStam
 	}
 }
 
-// pathToEmbedPath converts a relative path to an fs.FS path
 func (e *ReadOnlyFallthroughSpacePrimitives) pathToEmbedPath(path string) string {
 	return pathLib.Join(e.rootPath, path)
+}
+
+func normalizeEmbedSpacePath(spacePath string) string {
+	p := strings.ReplaceAll(spacePath, "\\", "/")
+	return strings.TrimPrefix(p, "/")
+}
+
+func (e *ReadOnlyFallthroughSpacePrimitives) candidateEmbedFSPaths(spacePath string) []string {
+	spacePath = normalizeEmbedSpacePath(spacePath)
+	primary := pathLib.Join(e.rootPath, spacePath)
+	out := []string{primary}
+	if spacePath != "" && !strings.HasPrefix(spacePath, "libraries/") {
+		out = append(out, pathLib.Join(e.rootPath, "libraries", spacePath))
+	}
+	return out
+}
+
+func (e *ReadOnlyFallthroughSpacePrimitives) statEmbedFile(spacePath string) (fs.FileInfo, error) {
+	for _, ep := range e.candidateEmbedFSPaths(spacePath) {
+		info, err := fs.Stat(e.fsys, ep)
+		if err == nil && !info.IsDir() {
+			return info, nil
+		}
+	}
+	return nil, fs.ErrNotExist
+}
+
+func (e *ReadOnlyFallthroughSpacePrimitives) readEmbedFile(spacePath string) ([]byte, fs.FileInfo, error) {
+	for _, ep := range e.candidateEmbedFSPaths(spacePath) {
+		data, err := fs.ReadFile(e.fsys, ep)
+		if err == nil {
+			info, statErr := fs.Stat(e.fsys, ep)
+			if statErr != nil {
+				return nil, nil, statErr
+			}
+			if info.IsDir() {
+				continue
+			}
+			return data, info, nil
+		}
+	}
+	return nil, nil, fs.ErrNotExist
 }
 
 // Inverse of pathToEmbedPath
@@ -99,16 +139,13 @@ func (e *ReadOnlyFallthroughSpacePrimitives) FetchFileList() ([]FileMeta, error)
 
 // GetFileMeta implements SpacePrimitives.GetFileMeta
 func (e *ReadOnlyFallthroughSpacePrimitives) GetFileMeta(path string) (FileMeta, error) {
-	embedPath := e.pathToEmbedPath(path)
-
-	// Try to get file info from filesystem
-	info, err := fs.Stat(e.fsys, embedPath)
-	if err == nil && !info.IsDir() {
+	info, err := e.statEmbedFile(path)
+	if err == nil {
 		return e.fileInfoToFileMeta(path, info), nil
 	}
 
 	if e.fallthroughSpacePrimitives == nil {
-		return FileMeta{}, errors.New("Not found")
+		return FileMeta{}, ErrNotFound
 	}
 
 	// If not found in fs.FS, fall back
@@ -117,22 +154,13 @@ func (e *ReadOnlyFallthroughSpacePrimitives) GetFileMeta(path string) (FileMeta,
 
 // ReadFile implements SpacePrimitives.ReadFile
 func (e *ReadOnlyFallthroughSpacePrimitives) ReadFile(path string) ([]byte, FileMeta, error) {
-	embedPath := e.pathToEmbedPath(path)
-
-	// Try to read from filesystem
-	data, err := fs.ReadFile(e.fsys, embedPath)
+	data, info, err := e.readEmbedFile(path)
 	if err == nil {
-		// Get file info for metadata
-		info, statErr := fs.Stat(e.fsys, embedPath)
-		if statErr != nil {
-			return nil, FileMeta{}, statErr
-		}
-
 		return data, e.fileInfoToFileMeta(path, info), nil
 	}
 
 	if e.fallthroughSpacePrimitives == nil {
-		return nil, FileMeta{}, errors.New("Not found")
+		return nil, FileMeta{}, ErrNotFound
 	}
 
 	// If not found in fs.FS, fall back
@@ -142,17 +170,16 @@ func (e *ReadOnlyFallthroughSpacePrimitives) ReadFile(path string) ([]byte, File
 // WriteFile implements SpacePrimitives.WriteFile
 // Fails if file exists in filesystem, otherwise delegates to fallback
 func (e *ReadOnlyFallthroughSpacePrimitives) WriteFile(path string, data []byte, meta *FileMeta) (FileMeta, error) {
-	embedPath := e.pathToEmbedPath(path)
-
-	// Check if file exists in filesystem
-	_, err := fs.Stat(e.fsys, embedPath)
+	_, err := e.statEmbedFile(path)
 	if err == nil {
-		// File exists in filesystem, cannot write
-		return FileMeta{}, fmt.Errorf("Cannot write file %s: read-only", path)
+		return FileMeta{}, fmt.Errorf("cannot write %q: %w", path, ErrReadOnlySpacePath)
+	}
+	if _, _, rerr := e.readEmbedFile(path); rerr == nil {
+		return FileMeta{}, fmt.Errorf("cannot write %q: %w", path, ErrReadOnlySpacePath)
 	}
 
 	if e.fallthroughSpacePrimitives == nil {
-		return FileMeta{}, errors.New("Not found")
+		return FileMeta{}, ErrNotFound
 	}
 
 	return e.fallthroughSpacePrimitives.WriteFile(path, data, meta)
@@ -161,17 +188,16 @@ func (e *ReadOnlyFallthroughSpacePrimitives) WriteFile(path string, data []byte,
 // DeleteFile implements SpacePrimitives.DeleteFile
 // Fails if file exists in filesystem, otherwise delegates to fallback
 func (e *ReadOnlyFallthroughSpacePrimitives) DeleteFile(path string) error {
-	embedPath := e.pathToEmbedPath(path)
-
-	// Check if file exists in filesystem
-	_, err := fs.Stat(e.fsys, embedPath)
+	_, err := e.statEmbedFile(path)
 	if err == nil {
-		// File exists in filesystem, cannot delete
-		return fmt.Errorf("cannot delete file %s: read-only file", path)
+		return fmt.Errorf("cannot delete %q: %w", path, ErrReadOnlySpacePath)
+	}
+	if _, _, rerr := e.readEmbedFile(path); rerr == nil {
+		return fmt.Errorf("cannot delete %q: %w", path, ErrReadOnlySpacePath)
 	}
 
 	if e.fallthroughSpacePrimitives == nil {
-		return errors.New("Not found")
+		return ErrNotFound
 	}
 
 	return e.fallthroughSpacePrimitives.DeleteFile(path)

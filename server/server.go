@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
 	"log"
 	"net"
 	"net/http"
@@ -67,6 +68,30 @@ func Router(config *ServerConfig) chi.Router {
 
 	// Mount filesystem routes under /.fs
 	routes.Mount("/.fs", buildFsRoutes())
+
+	// Admin UI — admin-only HTML page served from the client bundle.
+	routes.Get("/.admin", func(w http.ResponseWriter, r *http.Request) {
+		if requireAdmin(w, r) == nil {
+			return
+		}
+		spaceConfig := spaceConfigFromContext(r.Context())
+		data, _, err := config.ClientBundle.ReadFile(".client/admin.html")
+		if err != nil {
+			http.Error(w, "Admin page not found in client bundle", http.StatusNotFound)
+			return
+		}
+		tpl, err := template.New("admin").Parse(string(data))
+		if err != nil {
+			http.Error(w, "Template error", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Cache-Control", "no-cache")
+		_ = tpl.Execute(w, map[string]any{
+			"HostPrefix": config.HostURLPrefix,
+			"SpaceName":  spaceConfig.SpaceName,
+		})
+	})
 
 	// Config endpoint
 	routes.Get("/.config", func(w http.ResponseWriter, r *http.Request) {

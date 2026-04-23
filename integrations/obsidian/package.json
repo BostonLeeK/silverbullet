@@ -1,0 +1,15 @@
+{
+  "name": "silverbullet-obsidian",
+  "version": "0.1.0",
+  "description": "Obsidian plugin that syncs a sub-folder with a SilverBullet server.",
+  "main": "main.js",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --external:obsidian --format=cjs --platform=node --target=es2020 --outfile=main.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.23.0",
+    "obsidian": "^1.4.0",
+    "typescript": "^5.4.0"
+  }
+}

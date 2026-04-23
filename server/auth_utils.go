@@ -117,9 +117,11 @@ func isExcludedPath(path string) bool {
 	if path == "/" {
 		return true
 	}
-	// Check if path starts with any item in excludedPaths
-	for _, excludedPath := range excludedPaths {
-		if strings.HasPrefix(path, excludedPath) {
+	if excludedExact[path] {
+		return true
+	}
+	for _, prefix := range excludedPrefixes {
+		if strings.HasPrefix(path, prefix) {
 			return true
 		}
 	}
