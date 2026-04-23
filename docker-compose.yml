@@ -1,0 +1,20 @@
+# Paths are relative to this file: ./vault = markdown space, ./db = SQLite (users/ACL).
+# To run only a pre-loaded image on a server without the repo, remove the "build:" block.
+services:
+  silverbullet:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: silverbullet:latest
+    restart: unless-stopped
+    ports:
+      - "${PUBLISH_PORT:-9009}:3000"
+    environment:
+      SB_HOSTNAME: 0.0.0.0
+      SB_FOLDER: /space
+      SB_PORT: "3000"
+      SB_DB_PATH: /data/silverbullet.db
+      SB_ALLOW_INSECURE_HTTP: "1"
+    volumes:
+      - ./vault:/space
+      - ./db:/data

@@ -236,6 +236,7 @@ func TestIntegration_Headless(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "index", config.IndexPage)
 		assert.False(t, config.ReadOnly)
+		assert.False(t, config.AllowInsecureHttp)
 	})
 
 	t.Run("FileList", func(t *testing.T) {

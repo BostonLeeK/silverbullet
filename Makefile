@@ -2,7 +2,7 @@ LDFLAGS = -X main.buildTime=$$(date -u +%Y-%m-%dT%H:%M:%SZ)
 CLI_VERSION = $$(sed -n 's/.*"\([^"]*\)".*/\1/p' public_version.ts)
 CLI_LDFLAGS = -X main.version=$(CLI_VERSION)
 
-.PHONY: build build-for-docker docker build-server-releases build-cli-releases clean check fmt test test-integration test-e2e bench generate website
+.PHONY: build build-for-docker docker build-server-releases build-cli-releases clean check fmt test test-integration test-e2e bench generate website compose-build compose-up
 
 build:
 	npm run build
@@ -21,6 +21,13 @@ build-for-docker: build
 
 docker: build-for-docker
 	docker buildx build --platform linux/arm64,linux/amd64,linux/arm/v7 --push .
+
+compose-build:
+	docker compose build
+
+compose-up:
+	mkdir -p vault db
+	docker compose up -d
 
 build-server-releases:
 	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o silverbullet . && zip silverbullet-server-linux-aarch64.zip silverbullet

@@ -31,6 +31,7 @@ type ServerConfig struct {
 	// HeadlessToken is a random token generated at startup for headless browser auth.
 	// The headless browser passes this token via URL query param to auto-authenticate.
 	HeadlessToken string
+	AllowInsecureHTTP bool
 }
 
 type SpaceConfig struct {

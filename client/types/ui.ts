@@ -187,6 +187,8 @@ export type BootConfig = {
   performReset?: boolean;
 
   enableClientEncryption: boolean;
+
+  allowInsecureHttp?: boolean;
 };
 
 /**

@@ -149,7 +149,12 @@
                     No users exist yet. Create the initial administrator account below.
                 </p>
                 {{end}}
-                <form class="flow" id="login" method="POST">
+                <form
+                    class="flow"
+                    data-post-endpoint="{{if .SetupMode}}.auth/setup{{else}}.auth{{end}}"
+                    id="login"
+                    method="POST"
+                >
                     <div class="error-message"></div>
                     <div>
                         <label for="email">Email</label>
@@ -177,6 +182,7 @@
                         />
                         <label for="rememberMe">Remember me ({{.RememberMeDays}} days)</label>
                     </div>
+                    {{if not .AllowInsecureHTTP}}
                     <div class="checkbox-wrapper">
                         <input
                             id="clientEncryption"
@@ -185,6 +191,7 @@
                         />
                         <label for="clientEncryption">Enable client encryption (e.g. when using a public computer)</label>
                     </div>
+                    {{end}}
                     {{end}}
                     <div style="--space: 1.8rem">
                         <button>{{if .SetupMode}}Create admin{{else}}Login{{end}}</button>
@@ -197,32 +204,37 @@
         </div>
 
 <script>
-const workerURL = new URL("service_worker.js", document.baseURI);
-console.log("Registering service worker");
-navigator.serviceWorker.register(workerURL, {
-  type: "module",
-  scope: workerURL.pathname.substring(0, workerURL.pathname.lastIndexOf("/") + 1),
-}).then(() => {
-  console.log("Service worker registered");
-});
-
-const SETUP_MODE = {{if .SetupMode}}true{{else}}false{{end}};
-
-document.getElementById("login").addEventListener("submit", (e) => {
+(function () {
+  const formEl = document.getElementById("login");
+  if (!formEl) {
+    return;
+  }
+  formEl.addEventListener("submit", (e) => {
   e.preventDefault();
+  const form = e.currentTarget;
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+  const endpoint = form.getAttribute("data-post-endpoint");
+  if (!endpoint) {
+    return;
+  }
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   const params = new URLSearchParams();
   params.append('email', email);
   params.append('password', password);
 
-  const endpoint = SETUP_MODE ? '.auth/setup' : '.auth';
+  const rememberEl = document.getElementById('rememberMe');
+  const encEl = document.getElementById('clientEncryption');
   let rememberMe = false;
   let enableEncryption = false;
-  if (!SETUP_MODE) {
-    rememberMe = document.getElementById('rememberMe').checked;
-    enableEncryption = document.getElementById('clientEncryption').checked;
+  if (rememberEl) {
+    rememberMe = rememberEl.checked;
     if (rememberMe) params.append('rememberMe', 'true');
+  }
+  if (encEl) {
+    enableEncryption = encEl.checked;
   }
 
   fetch(endpoint, {
@@ -231,17 +243,17 @@ document.getElementById("login").addEventListener("submit", (e) => {
     credentials: 'include',
     body: params.toString(),
   })
-  .then(async(response) => {
+  .then(async (response) => {
     const body = await response.json();
-    if(body.status === "error") {
+    if (body.status === "error") {
       document.querySelector(".error-message").innerText = body.error;
       return;
     }
-    if(enableEncryption) {
+    if (enableEncryption) {
       localStorage.setItem('enableEncryption', "true");
       const salt = base64Decode({{.EncryptionSalt}});
       const key = await deriveKey(`${email}:${password}`, salt);
-      if(navigator.serviceWorker?.controller) {
+      if (navigator.serviceWorker?.controller) {
         navigator.serviceWorker.controller.postMessage({
           type: "set-encryption-key",
           key,
@@ -254,11 +266,37 @@ document.getElementById("login").addEventListener("submit", (e) => {
       localStorage.removeItem('enableEncryption');
     }
     location.href = body.redirect;
+  })
+  .catch((err) => {
+    document.querySelector(".error-message").innerText =
+      err && err.message ? err.message : "Request failed";
   });
-});
+  });
+  try {
+    const workerURL = new URL("service_worker.js", document.baseURI);
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker
+        .register(workerURL, {
+          type: "module",
+          scope: workerURL.pathname.substring(
+            0,
+            workerURL.pathname.lastIndexOf("/") + 1,
+          ),
+        })
+        .then(() => {
+          console.log("Service worker registered");
+        })
+        .catch((e) => {
+          console.warn("Service worker registration failed", e);
+        });
+    }
+  } catch (e) {
+    console.warn("Service worker registration failed", e);
+  }
+})();
 const params = new URLSearchParams(window.location.search);
 const from = params.get("from");
-if(localStorage.getItem("enableEncryption")) {
+if (document.getElementById("clientEncryption") && localStorage.getItem("enableEncryption")) {
   document.getElementById("clientEncryption").checked = true;
 }
 if (from) {

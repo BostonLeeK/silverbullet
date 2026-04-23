@@ -94,6 +94,10 @@ func buildConfig(bundledFiles fs.FS, args []string, buildTime string) *server.Se
 
 	serverConfig.EnableHTTPLogging = os.Getenv("SB_HTTP_LOGGING") != ""
 
+	if os.Getenv("SB_ALLOW_INSECURE_HTTP") != "" {
+		serverConfig.AllowInsecureHTTP = true
+	}
+
 	if os.Getenv("SB_METRICS_PORT") != "" {
 		serverConfig.MetricsPort, err = strconv.Atoi(os.Getenv("SB_METRICS_PORT"))
 		if err != nil {

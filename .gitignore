@@ -21,3 +21,5 @@ tmp
 .opencode
 AGENTS.md
 .claude
+/vault/
+/db/

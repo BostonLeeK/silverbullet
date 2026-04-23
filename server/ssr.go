@@ -68,10 +68,12 @@ func ServerSideRender(config *ServerConfig, spaceConfig *SpaceConfig, pageName s
 		Description        string
 		Content            string
 		AdditionalHeadHTML template.HTML
+		AllowInsecureHTTP  bool
 	}{
 		Title:              "SilverBullet",
 		HostPrefix:         config.HostURLPrefix,
 		AdditionalHeadHTML: spaceConfig.AdditionalHeadHTML,
+		AllowInsecureHTTP:  config.AllowInsecureHTTP,
 	}
 
 	if spaceConfig.ReadOnlyMode && spaceConfig.Auth == nil {

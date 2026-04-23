@@ -32,6 +32,7 @@ type BootConfig struct {
 	// Encryption
 	EnableClientEncryption bool `json:"enableClientEncryption"`
 
+	AllowInsecureHttp bool `json:"allowInsecureHttp"`
 }
 
 func Router(config *ServerConfig) chi.Router {
@@ -103,6 +104,7 @@ func Router(config *ServerConfig) chi.Router {
 			LogPush:         spaceConfig.LogPush,
 			// Client encryption is offered as an option when auth is enabled only
 			EnableClientEncryption: spaceConfig.Auth != nil,
+			AllowInsecureHttp:      config.AllowInsecureHTTP,
 		}
 
 		w.Header().Set("Cache-Control", "no-cache")

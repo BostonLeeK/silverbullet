@@ -25,6 +25,9 @@
         <meta content="{{.Description}}" property="og:description" />
 
         <link href=".client/main.css" rel="stylesheet" />
+        <script>
+            window.__SB_ALLOW_INSECURE_HTTP = {{.AllowInsecureHTTP}};
+        </script>
         <script src=".client/client.js" type="module"></script>
         <link
             crossorigin="use-credentials"

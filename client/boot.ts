@@ -18,9 +18,16 @@ import { importKey } from "@silverbulletmd/silverbullet/lib/crypto";
 import "./debug.ts";
 const logger = initLogger("[Client]");
 
-if (!crypto.subtle) {
-  alert(
-    "You are likely accessing SilverBullet via HTTP (rather than HTTPS or localhost), this is not a supported configuration. See https://silverbullet.md/TLS",
+function isAllowInsecureHttp(boot: BootConfig | undefined): boolean {
+  if (boot?.allowInsecureHttp) {
+    return true;
+  }
+  if (typeof globalThis === "undefined") {
+    return false;
+  }
+  return Boolean(
+    (globalThis as { __SB_ALLOW_INSECURE_HTTP?: boolean })
+      .__SB_ALLOW_INSECURE_HTTP,
   );
 }
 
@@ -53,6 +60,21 @@ safeRun(async () => {
       );
       // Not recoverable
       return;
+    }
+  }
+  if (!crypto.subtle) {
+    if (isAllowInsecureHttp(bootConfig)) {
+      console.warn(
+        "Web Crypto (crypto.subtle) is unavailable; client encryption disabled. Use HTTPS for full support: https://silverbullet.md/TLS",
+      );
+      if (bootConfig) {
+        bootConfig.enableClientEncryption = false;
+        bootConfig.allowInsecureHttp = true;
+      }
+    } else {
+      alert(
+        "You are likely accessing SilverBullet via HTTP (rather than HTTPS or localhost), this is not a supported configuration. See https://silverbullet.md/TLS",
+      );
     }
   }
   // Concatenate and evaluate

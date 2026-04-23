@@ -106,14 +106,16 @@ func addAuthEndpoints(r chi.Router, config *ServerConfig) {
 		tpl := template.Must(template.New("auth").Parse(string(data)))
 
 		templateData := map[string]any{
-			"HostPrefix":     config.HostURLPrefix,
-			"SpaceName":      spaceConfig.SpaceName,
-			"EncryptionSalt": spaceConfig.JwtIssuer.Salt,
-			"RememberMeDays": spaceConfig.Auth.RememberMeHours / 24,
-			"SetupMode":      !hasUsers,
+			"HostPrefix":         config.HostURLPrefix,
+			"SpaceName":          spaceConfig.SpaceName,
+			"EncryptionSalt":     spaceConfig.JwtIssuer.Salt,
+			"RememberMeDays":     spaceConfig.Auth.RememberMeHours / 24,
+			"SetupMode":          !hasUsers,
+			"AllowInsecureHTTP":  config.AllowInsecureHTTP,
 		}
 
 		w.Header().Set("Content-type", "text/html")
+		w.Header().Set("Cache-Control", "no-store, no-cache")
 		w.WriteHeader(http.StatusOK)
 		if err := tpl.Execute(w, templateData); err != nil {
 			log.Printf("Could not render auth page: %v", err)
@@ -147,22 +149,9 @@ func addAuthEndpoints(r chi.Router, config *ServerConfig) {
 			render.JSON(w, r, map[string]any{"status": "error", "error": "Email and password required"})
 			return
 		}
-		if len(password) < 8 {
-			render.JSON(w, r, map[string]any{"status": "error", "error": "Password must be at least 8 characters"})
-			return
-		}
-		if err := spaceConfig.InitAuth(); err != nil {
-			http.Error(w, "Auth init failed", http.StatusInternalServerError)
-			return
-		}
-		user, err := spaceConfig.UserStore.CreateUser(email, password, RoleAdmin)
-		if err != nil {
-			render.JSON(w, r, map[string]any{"status": "error", "error": err.Error()})
-			return
-		}
-		log.Printf("Setup: created initial admin user %s (id=%d)", user.Email, user.ID)
-		issueSessionCookie(w, r, config, spaceConfig, user, true)
-		render.JSON(w, r, map[string]any{"status": "ok", "redirect": applyURLPrefix("/", config.HostURLPrefix)})
+		completeFirstUserSetup(
+			w, r, config, spaceConfig, email, password, applyURLPrefix("/", config.HostURLPrefix),
+		)
 	})
 
 	// Auth POST endpoint (login)
@@ -192,6 +181,20 @@ func addAuthEndpoints(r chi.Router, config *ServerConfig) {
 
 		if email == "" || password == "" {
 			render.JSON(w, r, map[string]any{"status": "error", "error": "Email and password required"})
+			return
+		}
+
+		hasUsers, hasUsersErr := spaceConfig.UserStore.HasAnyUser()
+		if hasUsersErr != nil {
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		if !hasUsers {
+			redirectPath := applyURLPrefix("/", config.HostURLPrefix)
+			if from != "" {
+				redirectPath = from
+			}
+			completeFirstUserSetup(w, r, config, spaceConfig, email, password, redirectPath)
 			return
 		}
 
@@ -406,6 +409,31 @@ func addAuthEndpoints(r chi.Router, config *ServerConfig) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+func completeFirstUserSetup(
+	w http.ResponseWriter,
+	r *http.Request,
+	config *ServerConfig,
+	spaceConfig *SpaceConfig,
+	email, password, redirect string,
+) {
+	if err := spaceConfig.InitAuth(); err != nil {
+		http.Error(w, "Auth init failed", http.StatusInternalServerError)
+		return
+	}
+	if len(password) < 8 {
+		render.JSON(w, r, map[string]any{"status": "error", "error": "Password must be at least 8 characters"})
+		return
+	}
+	user, err := spaceConfig.UserStore.CreateUser(email, password, RoleAdmin)
+	if err != nil {
+		render.JSON(w, r, map[string]any{"status": "error", "error": err.Error()})
+		return
+	}
+	log.Printf("Setup: created initial admin user %s (id=%d)", user.Email, user.ID)
+	issueSessionCookie(w, r, config, spaceConfig, user, true)
+	render.JSON(w, r, map[string]any{"status": "ok", "redirect": redirect})
 }
 
 // issueSessionCookie creates a JWT and sets the auth cookie.

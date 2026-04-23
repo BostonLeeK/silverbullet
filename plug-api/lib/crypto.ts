@@ -32,26 +32,40 @@ export function base64DecodeDataUrl(dataUrl: string): Uint8Array {
   return base64Decode(b64Encoded);
 }
 
-/**
- * Perform sha256 hash using the browser's crypto APIs
- * Note: this will only work over HTTPS
- * @param message
- */
+function fnv1a32(data: Uint8Array, seed: number): number {
+  let h = 2166136261 ^ (seed | 0);
+  for (let i = 0; i < data.length; i++) {
+    h ^= data[i]!;
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function hashBytesFallback64Hex(data: Uint8Array): string {
+  let s = "";
+  for (let k = 0; k < 8; k++) {
+    s += fnv1a32(data, k * 0x9e3779b9)
+      .toString(16)
+      .padStart(8, "0");
+  }
+  return s;
+}
+
 export async function hashSHA256(
   message: string | Uint8Array,
 ): Promise<string> {
-  // Transform the string into an ArrayBuffer
   const encoder = new TextEncoder();
   const data: Uint8Array =
     typeof message === "string" ? encoder.encode(message) : message;
 
-  // Generate the hash
+  if (!globalThis.crypto?.subtle) {
+    return hashBytesFallback64Hex(data);
+  }
+
   const hashBuffer = await globalThis.crypto.subtle.digest(
     "SHA-256",
     data as BufferSource,
   );
-
-  // Transform the hash into a hex string
   return Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
