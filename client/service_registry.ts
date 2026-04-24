@@ -14,6 +14,21 @@ export type ServiceSpec = {
   run: (data: any) => Promise<any>;
 };
 
+function serviceId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  if (typeof globalThis.crypto?.getRandomValues === "function") {
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+  const rnd = () => Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, "0");
+  return `${rnd()}-${rnd().slice(0, 4)}-4${rnd().slice(1, 4)}-a${rnd().slice(1, 4)}-${rnd()}${rnd().slice(0, 4)}`;
+}
+
 export class ServiceRegistry {
   constructor(
     private eventHook: EventHook,
@@ -21,7 +36,7 @@ export class ServiceRegistry {
   ) {}
 
   public define(spec: ServiceSpec): void {
-    const id = globalThis.crypto.randomUUID();
+    const id = serviceId();
     // Register with discover:* event
     this.config.insert(
       ["eventListeners", `discover:${spec.selector}`],
