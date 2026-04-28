@@ -38,20 +38,34 @@ class CodeCopyWidget extends WidgetType {
     button.className = "sb-code-copy-button";
     button.innerHTML = ICON_SVG;
     button.title = "Copy";
-    button.onclick = (e) => {
+    button.onclick = async (e) => {
       e.stopPropagation();
       e.preventDefault();
-      navigator.clipboard
-        .writeText(this.value)
-        .catch((err) => {
-          this.client.ui.flashNotification(
-            `Error copying to clipboard: ${err}`,
-            "error",
-          );
-        })
-        .then(() => {
-          this.client.ui.flashNotification("Copied to clipboard", "info");
-        });
+      try {
+        if (globalThis.navigator.clipboard?.writeText) {
+          await globalThis.navigator.clipboard.writeText(this.value);
+        } else {
+          const textarea = document.createElement("textarea");
+          textarea.value = this.value;
+          textarea.setAttribute("readonly", "");
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          textarea.select();
+          textarea.setSelectionRange(0, textarea.value.length);
+          const copied = document.execCommand("copy");
+          document.body.removeChild(textarea);
+          if (!copied) {
+            throw new Error("Clipboard API is unavailable");
+          }
+        }
+        this.client.ui.flashNotification("Copied to clipboard", "info");
+      } catch (err) {
+        this.client.ui.flashNotification(
+          `Error copying to clipboard: ${err}`,
+          "error",
+        );
+      }
     };
 
     return wrap;
