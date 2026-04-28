@@ -7,8 +7,6 @@ services:
       dockerfile: Dockerfile
     image: silverbullet:latest
     restart: unless-stopped
-    ports:
-      - "${PUBLISH_PORT:-9009}:3000"
     environment:
       SB_HOSTNAME: 0.0.0.0
       SB_FOLDER: /space
@@ -18,3 +16,25 @@ services:
     volumes:
       - ./vault:/space
       - ./db:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - silverbullet
+    environment:
+      CADDY_DOMAIN: "${CADDY_DOMAIN:-copters-app1.rnd}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy_data:/data
+      - ./caddy_config:/config
+
+  haproxy:
+    image: haproxy:2.9
+    restart: unless-stopped
+    depends_on:
+      - caddy
+    ports:
+      - "${HTTPS_PUBLISH_PORT:-9009}:9009"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro

@@ -255,6 +255,15 @@ safeRun(async () => {
             });
           }
         });
+      })
+      .catch((error) => {
+        console.warn("Service worker registration failed", error);
+        if (
+          error instanceof DOMException &&
+          error.name === "SecurityError"
+        ) {
+          localStorage.setItem("enableSW", "0");
+        }
       });
   } else {
     console.info("Service worker disabled.");

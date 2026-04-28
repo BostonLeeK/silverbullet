@@ -1,0 +1,8 @@
+{$CADDY_DOMAIN}:80 {
+	redir https://{$CADDY_DOMAIN}:9009{uri} 308
+}
+
+{$CADDY_DOMAIN}:443 {
+	tls internal
+	reverse_proxy silverbullet:3000
+}
